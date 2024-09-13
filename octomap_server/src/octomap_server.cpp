@@ -276,7 +276,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   color_free_.r = declare_parameter("color_free.r", 0.0);
   color_free_.g = declare_parameter("color_free.g", 1.0);
   color_free_.b = declare_parameter("color_free.b", 0.0);
-  color_free_.r = declare_parameter("color_free.a", 1.0);
+  color_free_.a = declare_parameter("color_free.a", 1.0);
 
   publish_free_space_ = declare_parameter("publish_free_space", false);
 
@@ -836,7 +836,7 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
       free_nodes_vis.markers[i].header.frame_id = world_frame_id_;
       free_nodes_vis.markers[i].header.stamp = rostime;
       free_nodes_vis.markers[i].ns = "map";
-      free_nodes_vis.markers[i].id = i;
+      free_nodes_vis.markers[i].id = i; 
       free_nodes_vis.markers[i].type = visualization_msgs::msg::Marker::CUBE_LIST;
       free_nodes_vis.markers[i].scale.x = size;
       free_nodes_vis.markers[i].scale.y = size;

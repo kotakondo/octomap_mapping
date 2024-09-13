@@ -836,7 +836,7 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
       free_nodes_vis.markers[i].header.frame_id = world_frame_id_;
       free_nodes_vis.markers[i].header.stamp = rostime;
       free_nodes_vis.markers[i].ns = "map";
-      free_nodes_vis.markers[i].id = i; 
+      free_nodes_vis.markers[i].id = i;
       free_nodes_vis.markers[i].type = visualization_msgs::msg::Marker::CUBE_LIST;
       free_nodes_vis.markers[i].scale.x = size;
       free_nodes_vis.markers[i].scale.y = size;

@@ -118,7 +118,7 @@ void OctomapServerMultilayer::handlePreNodeTraversal(const rclcpp::Time & rostim
     geometry_msgs::msg::TransformStamped transform_stamped;
     try {
       transform_stamped = tf2_buffer_->lookupTransform(
-        "base_footprint", arm_links_.at(i), rclcpp::Time(0),
+        "base_link", arm_links_.at(i), rclcpp::Time(0),
         rclcpp::Duration::from_seconds(1.0));
     } catch (const tf2::TransformException & ex) {
       RCLCPP_WARN(this->get_logger(), "%s", ex.what());

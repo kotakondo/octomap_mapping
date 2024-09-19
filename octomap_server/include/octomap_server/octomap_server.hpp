@@ -65,6 +65,8 @@
 
 #include "octomap_ros/conversions.hpp"
 
+// prefix 
+using namespace std::chrono_literals;
 
 // switch color here - easier maintenance, only maintain OctomapServer.
 // Two targets are defined in the cmake, octomap_server_color and octomap_server.
@@ -247,8 +249,10 @@ protected:
   rclcpp::Publisher<PointCloud2>::SharedPtr point_cloud_pub_;
   rclcpp::Publisher<OccupancyGrid>::SharedPtr map_pub_;
   rclcpp::Publisher<MarkerArray>::SharedPtr fmarker_pub_;
-  message_filters::Subscriber<PointCloud2> point_cloud_sub_;
-  std::shared_ptr<tf2_ros::MessageFilter<PointCloud2>> tf_point_cloud_sub_;
+  message_filters::Subscriber<PointCloud2> lidar_point_cloud_sub_;
+  message_filters::Subscriber<PointCloud2> d435_point_cloud_sub_;
+  std::shared_ptr<tf2_ros::MessageFilter<PointCloud2>> lidar_tf_point_cloud_sub_;
+  std::shared_ptr<tf2_ros::MessageFilter<PointCloud2>> d435_tf_point_cloud_sub_;
   rclcpp::Service<OctomapSrv>::SharedPtr octomap_binary_srv_;
   rclcpp::Service<OctomapSrv>::SharedPtr octomap_full_srv_;
   rclcpp::Service<BBoxSrv>::SharedPtr clear_bbox_srv_;

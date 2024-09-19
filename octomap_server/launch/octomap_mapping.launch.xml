@@ -20,6 +20,6 @@
 
 		<!-- data source to integrate (PointCloud2) -->
 		<!-- <remap from="cloud_in" to="/narrow_stereo/points_filtered2" /> -->
-		<remap from="cloud_in" to="/mid360_PointCloud2" />
+		<remap from="lidar_cloud_in" to="/mid360_PointCloud2" />
 	</node>
 </launch>

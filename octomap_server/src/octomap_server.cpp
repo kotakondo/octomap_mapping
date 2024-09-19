@@ -62,7 +62,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   using std::placeholders::_2;
 
   world_frame_id_ = declare_parameter("frame_id", "map");
-  base_frame_id_ = declare_parameter("base_frame_id", "base_footprint");
+  base_frame_id_ = declare_parameter("base_frame_id", "base_link");
   use_height_map_ = declare_parameter("use_height_map", false);
   use_colored_map_ = declare_parameter("colored_map", false);
   color_factor_ = declare_parameter("color_factor", 0.8);
@@ -271,12 +271,12 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   color_.r = declare_parameter("color.r", 0.0);
   color_.g = declare_parameter("color.g", 0.0);
   color_.b = declare_parameter("color.b", 1.0);
-  color_.a = declare_parameter("color.a", 1.0);
+  color_.a = declare_parameter("color.a", 0.5);
 
   color_free_.r = declare_parameter("color_free.r", 0.0);
   color_free_.g = declare_parameter("color_free.g", 1.0);
   color_free_.b = declare_parameter("color_free.b", 0.0);
-  color_free_.a = declare_parameter("color_free.a", 1.0);
+  color_free_.a = declare_parameter("color_free.a", 0.5);
 
   publish_free_space_ = declare_parameter("publish_free_space", false);
 
@@ -309,12 +309,19 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
     std::make_shared<tf2_ros::TransformListener>(*tf2_buffer_);
 
   using std::chrono_literals::operator""s;
-  point_cloud_sub_.subscribe(this, "cloud_in", rmw_qos_profile_sensor_data);
-  tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
-    point_cloud_sub_, *tf2_buffer_, world_frame_id_, 5, this->get_node_logging_interface(),
-    this->get_node_clock_interface(), 5s);
+  lidar_point_cloud_sub_.subscribe(this, "lidar_cloud_in", rmw_qos_profile_sensor_data);
+  d435_point_cloud_sub_.subscribe(this, "d435_cloud_in", rmw_qos_profile_sensor_data);
 
-  tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
+  lidar_tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
+    lidar_point_cloud_sub_, *tf2_buffer_, world_frame_id_, 500, this->get_node_logging_interface(),
+    this->get_node_clock_interface(), 10s);
+
+  d435_tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
+    d435_point_cloud_sub_, *tf2_buffer_, world_frame_id_, 500, this->get_node_logging_interface(),
+    this->get_node_clock_interface(), 10s);
+
+  lidar_tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
+  d435_tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
 
   octomap_binary_srv_ = create_service<OctomapSrv>(
     "octomap_binary", std::bind(&OctomapServer::onOctomapBinarySrv, this, _1, _2));
@@ -400,6 +407,9 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
   //
   // ground filtering in base frame
   //
+
+  RCLCPP_INFO(get_logger(), "insertCloudCallback");
+
   PCLPointCloud pc;  // input cloud for filtering and ground-detection
   pcl::fromROSMsg(*cloud, pc);
 
@@ -407,7 +417,7 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
   try {
     sensor_to_world_transform_stamped = tf2_buffer_->lookupTransform(
       world_frame_id_, cloud->header.frame_id, cloud->header.stamp,
-      rclcpp::Duration::from_seconds(1.0));
+      rclcpp::Duration::from_seconds(2.0));
   } catch (const tf2::TransformException & ex) {
     RCLCPP_WARN(this->get_logger(), "%s", ex.what());
     return;
@@ -433,13 +443,13 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
     try {
       tf2_buffer_->canTransform(
         base_frame_id_, cloud->header.frame_id, cloud->header.stamp,
-        rclcpp::Duration::from_seconds(0.2));
+        rclcpp::Duration::from_seconds(2.0));
       sensor_to_base_transform_stamped = tf2_buffer_->lookupTransform(
         base_frame_id_, cloud->header.frame_id, cloud->header.stamp,
-        rclcpp::Duration::from_seconds(1.0));
+        rclcpp::Duration::from_seconds(2.0));
       base_to_world_transform_stamped = tf2_buffer_->lookupTransform(
         world_frame_id_, base_frame_id_, cloud->header.stamp,
-        rclcpp::Duration::from_seconds(1.0));
+        rclcpp::Duration::from_seconds(2.0));
     } catch (const tf2::TransformException & ex) {
       RCLCPP_ERROR_STREAM(
         get_logger(),

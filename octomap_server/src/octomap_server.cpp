@@ -309,19 +309,13 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
     std::make_shared<tf2_ros::TransformListener>(*tf2_buffer_);
 
   using std::chrono_literals::operator""s;
-  lidar_point_cloud_sub_.subscribe(this, "lidar_cloud_in", rmw_qos_profile_sensor_data);
-  d435_point_cloud_sub_.subscribe(this, "d435_cloud_in", rmw_qos_profile_sensor_data);
+  point_cloud_sub_.subscribe(this, "cloud_in", rmw_qos_profile_sensor_data);
 
-  lidar_tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
-    lidar_point_cloud_sub_, *tf2_buffer_, world_frame_id_, 500, this->get_node_logging_interface(),
+  tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
+    point_cloud_sub_, *tf2_buffer_, world_frame_id_, 100, this->get_node_logging_interface(),
     this->get_node_clock_interface(), 10s);
 
-  d435_tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
-    d435_point_cloud_sub_, *tf2_buffer_, world_frame_id_, 500, this->get_node_logging_interface(),
-    this->get_node_clock_interface(), 10s);
-
-  lidar_tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
-  d435_tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
+  tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
 
   octomap_binary_srv_ = create_service<OctomapSrv>(
     "octomap_binary", std::bind(&OctomapServer::onOctomapBinarySrv, this, _1, _2));
@@ -408,7 +402,7 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
   // ground filtering in base frame
   //
 
-  RCLCPP_INFO(get_logger(), "insertCloudCallback");
+  // RCLCPP_INFO(get_logger(), "insertCloudCallback");
 
   PCLPointCloud pc;  // input cloud for filtering and ground-detection
   pcl::fromROSMsg(*cloud, pc);

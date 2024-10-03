@@ -65,6 +65,8 @@
 
 #include "octomap_ros/conversions.hpp"
 
+#include <ament_index_cpp/get_package_share_directory.hpp>
+
 // prefix 
 using namespace std::chrono_literals;
 
@@ -308,6 +310,9 @@ protected:
   unsigned multires_2d_scale_;
   bool project_complete_map_;
   bool use_colored_map_;
+
+  std::string ns_;
+
 };
 }  // namespace octomap_server
 

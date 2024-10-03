@@ -90,6 +90,9 @@ OctomapServerMultilayer::OctomapServerMultilayer(const rclcpp::NodeOptions & nod
   arm_link_offsets_.push_back(0.16);
   arm_links_.push_back("r_wrist_flex_link");
   arm_link_offsets_.push_back(0.05);
+
+  // get namespace
+  ns_ = get_namespace();
 }
 
 void OctomapServerMultilayer::handlePreNodeTraversal(const rclcpp::Time & rostime)
@@ -99,7 +102,6 @@ void OctomapServerMultilayer::handlePreNodeTraversal(const rclcpp::Time & rostim
   MapMetaData gridmap_info = gridmap_.info;
 
   OctomapServer::handlePreNodeTraversal(rostime);
-
 
   // recalculate height of arm layer (stub, TODO)
   geometry_msgs::msg::PointStamped vin;
@@ -118,7 +120,7 @@ void OctomapServerMultilayer::handlePreNodeTraversal(const rclcpp::Time & rostim
     geometry_msgs::msg::TransformStamped transform_stamped;
     try {
       transform_stamped = tf2_buffer_->lookupTransform(
-        "base_link", arm_links_.at(i), rclcpp::Time(0),
+        ns_ + "/base_link", arm_links_.at(i), rclcpp::Time(0),
         rclcpp::Duration::from_seconds(1.0));
     } catch (const tf2::TransformException & ex) {
       RCLCPP_WARN(this->get_logger(), "%s", ex.what());

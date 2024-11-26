@@ -172,7 +172,15 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
     max_range_ = declare_parameter("sensor_model.max_range", -1.0, max_range_desc);
   }
 
-  res_ = declare_parameter("resolution", 0.05);
+  declare_parameter("resolution", 0.05);
+  declare_parameter("use_decay", false);
+  declare_parameter("decay_duration", 5.0);
+  declare_parameter("decay_frequency", 2.0);
+
+  res_ = this->get_parameter("resolution").as_double();
+  use_decay_ = this->get_parameter("use_decay").as_bool();
+  decay_duration_ = this->get_parameter("decay_duration").as_double();
+  decay_frequency_ = this->get_parameter("decay_frequency").as_double();
 
   rcl_interfaces::msg::ParameterDescriptor prob_hit_desc;
   prob_hit_desc.description =
@@ -239,18 +247,18 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   }
 
   if (use_colored_map_) {
-#ifdef COLOR_OCTOMAP_SERVER
-    RCLCPP_INFO_STREAM(get_logger(), "Using RGB color registration (if information available)");
-#else
+// #ifdef COLOR_OCTOMAP_SERVER
+//     RCLCPP_INFO_STREAM(get_logger(), "Using RGB color registration (if information available)");
+// #else
     RCLCPP_ERROR_STREAM(
       get_logger(),
       "Colored map requested in launch file - node not running/compiled to support colors, "
       "please define COLOR_OCTOMAP_SERVER and recompile or launch the octomap_color_server node");
-#endif
+// #endif
   }
 
   // initialize octomap object & params
-  octree_ = std::make_unique<OcTreeT>(res_);
+  octree_ = std::make_unique<OcTreeT>(res_, decay_duration_);
   octree_->setProbHit(prob_hit);
   octree_->setProbMiss(prob_miss);
   octree_->setClampingThresMin(thres_min);
@@ -336,6 +344,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   if (!openFile(filename)) {
     RCLCPP_WARN(get_logger(), "Could not open file %s", filename.c_str());
   }
+
 }
 
 bool OctomapServer::openFile(const std::string & filename)
@@ -345,6 +354,7 @@ bool OctomapServer::openFile(const std::string & filename)
   }
 
   std::string suffix = filename.substr(filename.length() - 3, 3);
+
   if (suffix == ".bt") {
     if (!octree_->readBinary(filename)) {
       return false;
@@ -354,7 +364,7 @@ bool OctomapServer::openFile(const std::string & filename)
     if (!tree) {
       return false;
     }
-    octree_ = std::unique_ptr<OcTreeT>(dynamic_cast<OcTreeT *>(tree.release()));
+    octree_ = std::unique_ptr<OcTreeT>(dynamic_cast<OcTreeT*>(tree.release()));
     if (!octree_) {
       RCLCPP_ERROR(
         get_logger(),
@@ -550,9 +560,9 @@ void OctomapServer::insertScan(
         updateMinKey(key, update_bbox_min_);
         updateMaxKey(key, update_bbox_max_);
 
-#ifdef COLOR_OCTOMAP_SERVER  // NB: Only read and interpret color if it's an occupied node
-        octree_->averageNodeColor(it->x, it->y, it->z, /*r=*/ it->r, /*g=*/ it->g, /*b=*/ it->b);
-#endif
+// #ifdef COLOR_OCTOMAP_SERVER  // NB: Only read and interpret color if it's an occupied node
+//         octree_->averageNodeColor(it->x, it->y, it->z, /*r=*/ it->r, /*g=*/ it->g, /*b=*/ it->b);
+// #endif
       }
     } else {  // ray longer than maxrange
       octomap::point3d new_end = sensor_origin + (point - sensor_origin).normalized() * max_range_;
@@ -571,16 +581,20 @@ void OctomapServer::insertScan(
     }
   }
 
+  double current_time = rclcpp::Clock{}.now().seconds(); // Get the current time
+
   // mark free cells only if not seen occupied in this cloud
   for (auto it = free_cells.begin(), end = free_cells.end(); it != end; ++it) {
     if (occupied_cells.find(*it) == occupied_cells.end()) {
       octree_->updateNode(*it, false);
+      dynamic_cast<OcTreeT*>(octree_.get())->updateNodeTimestamp(*it, current_time);
     }
   }
 
   // now mark all occupied cells:
   for (auto it = occupied_cells.begin(), end = occupied_cells.end(); it != end; it++) {
     octree_->updateNode(*it, true);
+    dynamic_cast<OcTreeT*>(octree_.get())->updateNodeTimestamp(*it, current_time);
   }
 
   // TODO(someone): eval lazy+updateInner vs. proper insertion
@@ -627,6 +641,20 @@ void OctomapServer::insertScan(
 
 void OctomapServer::publishAll(const rclcpp::Time & rostime)
 {
+
+  if (use_decay_) 
+  {
+    try {
+        auto* octree = dynamic_cast<OcTreeT*>(octree_.get());
+        if (!octree) {
+            throw std::runtime_error("Invalid octree type in publishAll");
+        }
+        octree->decayNodes(this->get_clock()->now().seconds());
+    } catch (const std::exception& e) {
+        RCLCPP_ERROR(this->get_logger(), "Error during node decay: %s", e.what());
+    }
+  }
+
   const auto start_time = rclcpp::Clock{}.now();
   const size_t octomap_size = octree_->size();
   // TODO(someone): estimate num occ. voxels for size of arrays (reserve)
@@ -696,11 +724,11 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
       if (z + half_size > occupancy_min_z_ && z - half_size < occupancy_max_z_) {
         double x = it.getX();
         double y = it.getY();
-#ifdef COLOR_OCTOMAP_SERVER
-        int r = it->getColor().r;
-        int g = it->getColor().g;
-        int b = it->getColor().b;
-#endif
+// #ifdef COLOR_OCTOMAP_SERVER
+//         int r = it->getColor().r;
+//         int g = it->getColor().g;
+//         int b = it->getColor().b;
+// #endif
 
         // Ignore speckles in the map:
         if (filter_speckles_ && (it.getDepth() == tree_depth_ + 1) && isSpeckleNode(it.getKey())) {
@@ -743,33 +771,33 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
             occupied_nodes_vis.markers[idx].colors.push_back(heightMapColor(h));
           }
 
-#ifdef COLOR_OCTOMAP_SERVER
-          if (use_colored_map_) {
-            ColorRGBA _color;
-            _color.r = (r / 255.);
-            _color.g = (g / 255.);
-            _color.b = (b / 255.);
-            // TODO(someone): EVALUATE: potentially use occupancy as measure for alpha channel?
-            _color.a = 1.0;
-            occupied_nodes_vis.markers[idx].colors.push_back(_color);
-          }
-#endif
+// #ifdef COLOR_OCTOMAP_SERVER
+//           if (use_colored_map_) {
+//             ColorRGBA _color;
+//             _color.r = (r / 255.);
+//             _color.g = (g / 255.);
+//             _color.b = (b / 255.);
+//             // TODO(someone): EVALUATE: potentially use occupancy as measure for alpha channel?
+//             _color.a = 1.0;
+//             occupied_nodes_vis.markers[idx].colors.push_back(_color);
+//           }
+// #endif
         }
 
         // insert into pointcloud:
         if (publish_point_cloud) {
-#ifdef COLOR_OCTOMAP_SERVER
-          PCLPoint _point = PCLPoint();
-          _point.x = x;
-          _point.y = y;
-          _point.z = z;
-          _point.r = r;
-          _point.g = g;
-          _point.b = b;
-          pcl_cloud.push_back(_point);
-#else
+// #ifdef COLOR_OCTOMAP_SERVER
+//           PCLPoint _point = PCLPoint();
+//           _point.x = x;
+//           _point.y = y;
+//           _point.z = z;
+//           _point.r = r;
+//           _point.g = g;
+//           _point.b = b;
+//           pcl_cloud.push_back(_point);
+// #else
           pcl_cloud.push_back(PCLPoint(x, y, z));
-#endif
+// #endif
         }
       }
     } else {  // node not occupied => mark as free in 2D map if unknown so far
@@ -859,6 +887,7 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
 
     fmarker_pub_->publish(free_nodes_vis);
   }
+
   // finish pointcloud:
   if (publish_point_cloud) {
     PointCloud2 cloud;
@@ -903,7 +932,6 @@ bool OctomapServer::onOctomapFullSrv(
   RCLCPP_INFO(get_logger(), "Sending full map data on service request");
   res->map.header.frame_id = world_frame_id_;
   res->map.header.stamp = now();
-
 
   if (!octomap_msgs::fullMapToMsg(*octree_, res->map)) {
     return false;
@@ -1489,14 +1517,14 @@ ColorRGBA OctomapServer::heightMapColor(double h)
   return color;
 }
 
-#ifdef COLOR_OCTOMAP_SERVER
-using ColorOctomapServer = OctomapServer;
-#endif
+// #ifdef COLOR_OCTOMAP_SERVER
+// using ColorOctomapServer = OctomapServer;
+// #endif
 }  // namespace octomap_server
 
 #include <rclcpp_components/register_node_macro.hpp>
-#ifdef COLOR_OCTOMAP_SERVER
-RCLCPP_COMPONENTS_REGISTER_NODE(octomap_server::ColorOctomapServer)
-#else
+// #ifdef COLOR_OCTOMAP_SERVER
+// RCLCPP_COMPONENTS_REGISTER_NODE(octomap_server::ColorOctomapServer)
+// #else
 RCLCPP_COMPONENTS_REGISTER_NODE(octomap_server::OctomapServer)
-#endif
+// #endif

@@ -75,14 +75,17 @@ using namespace std::chrono_literals;
 // One has this defined, and the other doesn't
 // #define COLOR_OCTOMAP_SERVER
 
-#ifdef COLOR_OCTOMAP_SERVER
-#include <octomap/ColorOcTree.h>
-#endif
+// #ifdef COLOR_OCTOMAP_SERVER
+// #include <octomap/ColorOcTree.h>
+// #endif
 
 #include <algorithm>
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "TimedOcTree.h"
+#include "TimedOcTreeNode.h"
 
 namespace octomap_server
 {
@@ -96,15 +99,16 @@ using visualization_msgs::msg::MarkerArray;
 class OctomapServer : public rclcpp::Node
 {
 public:
-#ifdef COLOR_OCTOMAP_SERVER
-  using PCLPoint = pcl::PointXYZRGB;
-  using PCLPointCloud = pcl::PointCloud<pcl::PointXYZRGB>;
-  using OcTreeT = octomap::ColorOcTree;
-#else
+// #ifdef COLOR_OCTOMAP_SERVER
+//   using PCLPoint = pcl::PointXYZRGB;
+//   using PCLPointCloud = pcl::PointCloud<pcl::PointXYZRGB>;
+//   using OcTreeT = octomap::ColorOcTree;
+// #else
   using PCLPoint = pcl::PointXYZ;
   using PCLPointCloud = pcl::PointCloud<pcl::PointXYZ>;
-  using OcTreeT = octomap::OcTree;
-#endif
+  // using OcTreeT = octomap::OcTree;
+  using OcTreeT = octomap::TimedOcTree;
+// #endif
   using OctomapSrv = octomap_msgs::srv::GetOctomap;
   using BBoxSrv = octomap_msgs::srv::BoundingBoxQuery;
   using ResetSrv = std_srvs::srv::Empty;
@@ -312,6 +316,11 @@ protected:
   bool use_colored_map_;
 
   std::string ns_;
+
+  // timer for decay
+  bool use_decay_;
+  double decay_duration_;
+  double decay_frequency_;
 
 };
 }  // namespace octomap_server

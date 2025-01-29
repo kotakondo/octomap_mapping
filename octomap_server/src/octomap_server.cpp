@@ -180,7 +180,6 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   res_ = this->get_parameter("resolution").as_double();
   use_decay_ = this->get_parameter("use_decay").as_bool();
   decay_duration_ = this->get_parameter("decay_duration").as_double();
-  decay_frequency_ = this->get_parameter("decay_frequency").as_double();
 
   rcl_interfaces::msg::ParameterDescriptor prob_hit_desc;
   prob_hit_desc.description =

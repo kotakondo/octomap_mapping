@@ -320,7 +320,6 @@ protected:
   // timer for decay
   bool use_decay_;
   double decay_duration_;
-  double decay_frequency_;
 
 };
 }  // namespace octomap_server

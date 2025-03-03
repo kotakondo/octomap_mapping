@@ -61,7 +61,12 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   using std::placeholders::_1;
   using std::placeholders::_2;
 
+  // Get parameters
   ns_ = get_namespace();
+  // remove the first slash
+  if (!ns_.empty() && ns_[0] == '/') {
+    ns_ = ns_.substr(1);
+  }
 
   world_frame_id_ = declare_parameter("frame_id", "map");
   base_frame_id_ = declare_parameter("base_frame_id", ns_ + "/base_link");
@@ -280,7 +285,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   color_.r = declare_parameter("color.r", 0.0);
   color_.g = declare_parameter("color.g", 0.0);
   color_.b = declare_parameter("color.b", 1.0);
-  color_.a = declare_parameter("color.a", 0.5);
+  color_.a = declare_parameter("color.a", 1.0);
 
   color_free_.r = declare_parameter("color_free.r", 0.0);
   color_free_.g = declare_parameter("color_free.g", 1.0);

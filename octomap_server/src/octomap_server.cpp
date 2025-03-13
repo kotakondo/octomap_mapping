@@ -306,7 +306,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
       "Publishing non-latched (topics are only prepared as needed, "
       "will only be re-published on map change");
   }
-  auto qos = latched_topics_ ? rclcpp::QoS{1}.transient_local() : rclcpp::QoS{1};
+  auto qos = latched_topics_ ? rclcpp::QoS{1}.best_effort().transient_local() : rclcpp::QoS{1}.best_effort();
   marker_pub_ = create_publisher<MarkerArray>("occupied_cells_vis_array", qos);
   binary_map_pub_ = create_publisher<Octomap>("octomap_binary", qos);
   full_map_pub_ = create_publisher<Octomap>("octomap_full", qos);

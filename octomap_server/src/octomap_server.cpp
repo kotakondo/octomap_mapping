@@ -306,7 +306,8 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
       "Publishing non-latched (topics are only prepared as needed, "
       "will only be re-published on map change");
   }
-  auto qos = latched_topics_ ? rclcpp::QoS{1}.best_effort().transient_local() : rclcpp::QoS{1}.best_effort();
+  auto qos = latched_topics_ ? rclcpp::QoS{1}.transient_local() : rclcpp::QoS{1};
+  // auto qos = latched_topics_ ? rclcpp::QoS{1}.best_effort().transient_local() : rclcpp::QoS{1}.best_effort();
   marker_pub_ = create_publisher<MarkerArray>("occupied_cells_vis_array", qos);
   binary_map_pub_ = create_publisher<Octomap>("octomap_binary", qos);
   full_map_pub_ = create_publisher<Octomap>("octomap_full", qos);
@@ -326,7 +327,7 @@ OctomapServer::OctomapServer(const rclcpp::NodeOptions & node_options)
   point_cloud_sub_.subscribe(this, "cloud_in", rmw_qos_profile_sensor_data);
 
   tf_point_cloud_sub_ = std::make_shared<tf2_ros::MessageFilter<PointCloud2>>(
-    point_cloud_sub_, *tf2_buffer_, world_frame_id_, 100, this->get_node_logging_interface(),
+    point_cloud_sub_, *tf2_buffer_, world_frame_id_, 1, this->get_node_logging_interface(),
     this->get_node_clock_interface(), 10s);
 
   tf_point_cloud_sub_->registerCallback(&OctomapServer::insertCloudCallback, this);
@@ -433,6 +434,9 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
     return;
   }
 
+  // Print out time in ms
+  // std::cout << "1: " << (rclcpp::Clock{}.now() - start_time).nanoseconds() / 1e6 << std::endl;
+
   // set up filter for height range, also removes NANs:
   pcl::PassThrough<PCLPoint> pass_x;
   pass_x.setFilterFieldName("x");
@@ -446,6 +450,9 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
 
   PCLPointCloud pc_ground;  // segmented ground plane
   PCLPointCloud pc_nonground;  // everything else
+
+    // Print out time in ms
+    // std::cout << "2: " << (rclcpp::Clock{}.now() - start_time).nanoseconds() / 1e6 << std::endl;
 
   if (filter_ground_plane_) {
     geometry_msgs::msg::TransformStamped sensor_to_base_transform_stamped;
@@ -466,6 +473,7 @@ void OctomapServer::insertCloudCallback(const PointCloud2::ConstSharedPtr cloud)
         "Transform error for ground plane filter: " << ex.what() << ", quitting callback.\n"
           "You need to set the base_frame_id or disable filter_ground.");
     }
+
 
     // transform pointcloud from sensor frame to fixed robot frame
     pcl_ros::transformPointCloud(pc, pc, sensor_to_base_transform_stamped);
@@ -667,30 +675,40 @@ void OctomapServer::publishAll(const rclcpp::Time & rostime)
     return;
   }
 
-  bool publish_free_marker_array_ = publish_free_space_ &&
-    (latched_topics_ ||
-    fmarker_pub_->get_subscription_count() +
-    fmarker_pub_->get_intra_process_subscription_count() > 0);
-  bool publish_marker_array =
-    (latched_topics_ ||
-    marker_pub_->get_subscription_count() +
-    marker_pub_->get_intra_process_subscription_count() > 0);
-  bool publish_point_cloud =
-    (latched_topics_ ||
-    point_cloud_pub_->get_subscription_count() +
-    point_cloud_pub_->get_intra_process_subscription_count() > 0);
+  // bool publish_free_marker_array_ = publish_free_space_ &&
+  //   (latched_topics_ ||
+  //   fmarker_pub_->get_subscription_count() +
+  //   fmarker_pub_->get_intra_process_subscription_count() > 0);
+  // bool publish_marker_array =
+  //   (latched_topics_ ||
+  //   marker_pub_->get_subscription_count() +
+  //   marker_pub_->get_intra_process_subscription_count() > 0);
+  // bool publish_point_cloud =
+  //   (latched_topics_ ||
+  //   point_cloud_pub_->get_subscription_count() +
+  //   point_cloud_pub_->get_intra_process_subscription_count() > 0);
+  // bool publish_binary_map =
+  //   (latched_topics_ ||
+  //   binary_map_pub_->get_subscription_count() +
+  //   binary_map_pub_->get_intra_process_subscription_count() > 0);
+  // bool publish_full_map =
+  //   (latched_topics_ ||
+  //   full_map_pub_->get_subscription_count() +
+  //   full_map_pub_->get_intra_process_subscription_count() > 0);
+  // publish_2d_map_ =
+  //   (latched_topics_ ||
+  //   map_pub_->get_subscription_count() +
+  //   map_pub_->get_intra_process_subscription_count() > 0);
+
+  bool publish_free_marker_array_ = false;
+  bool publish_marker_array = false;
+  bool publish_point_cloud = false;
   bool publish_binary_map =
     (latched_topics_ ||
     binary_map_pub_->get_subscription_count() +
     binary_map_pub_->get_intra_process_subscription_count() > 0);
-  bool publish_full_map =
-    (latched_topics_ ||
-    full_map_pub_->get_subscription_count() +
-    full_map_pub_->get_intra_process_subscription_count() > 0);
-  publish_2d_map_ =
-    (latched_topics_ ||
-    map_pub_->get_subscription_count() +
-    map_pub_->get_intra_process_subscription_count() > 0);
+  bool publish_full_map = false;
+  publish_2d_map_ = false;
 
   // init markers for free space:
   MarkerArray free_nodes_vis;
